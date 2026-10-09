@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TXTをインデックスに登録</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; color: #242424; background: #f7f7f8; }
+    body { margin: 0; min-height: 100vh; display: flex; justify-content: center; }
+    main { width: min(720px, 100%); min-height: 100vh; box-sizing: border-box; padding: 0 1.25rem; background: white; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; border-bottom: 1px solid #e5e5e5; }
+    h1 { margin: 0; font-size: 1.15rem; }
+    a { color: #2563eb; text-decoration: none; }
+    section { padding: 1.5rem 0; }
+    p { color: #555; line-height: 1.6; }
+    form { display: grid; gap: 1rem; margin-top: 1.5rem; }
+    input[type="file"] { width: 100%; box-sizing: border-box; padding: 1rem; border: 1px solid #ccc; border-radius: .6rem; background: #fafafa; }
+    button { justify-self: start; padding: .7rem 1.2rem; border: 0; border-radius: .55rem; color: white; background: #2563eb; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    #status { min-height: 1.5rem; margin-top: 1rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #status.error { color: #a11; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>TXTをインデックスに登録</h1>
+      <a href="/">チャットへ戻る</a>
+    </header>
+    <section>
+      <p>TXTファイルを選択して登録します。内容を分割し、Azure AI Search にインデックスします。</p>
+      <form id="upload-form">
+        <input id="text-file" name="file" type="file" accept="text/plain,.txt" required>
+        <button id="submit" type="submit">登録する</button>
+      </form>
+      <div id="status" role="status" aria-live="polite"></div>
+    </section>
+  </main>
+  <script>
+    const form = document.querySelector("#upload-form");
+    const fileInput = document.querySelector("#text-file");
+    const submitButton = document.querySelector("#submit");
+    const status = document.querySelector("#status");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      submitButton.disabled = true;
+      fileInput.disabled = true;
+      status.classList.remove("error");
+      status.textContent = "TXTを処理しています…";
+
+      try {
+        const tokenResponse = await fetch("/api/antiforgery");
+        const tokenResult = await tokenResponse.json();
+        if (!tokenResponse.ok) throw new Error(tokenResult.detail || "送信の準備に失敗しました");
+
+        const data = new FormData();
+        data.append("file", file);
+        const response = await fetch("/api/index", {
+          method: "POST",
+          headers: { "X-CSRF-TOKEN": tokenResult.requestToken },
+          body: data
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || result.error || "登録に失敗しました");
+        status.textContent = result.message;
+      } catch (error) {
+        status.classList.add("error");
+        status.textContent = error.message;
+      } finally {
+        submitButton.disabled = false;
+        fileInput.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

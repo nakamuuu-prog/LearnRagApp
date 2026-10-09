@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>チャットボット</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; color: #242424; background: #f7f7f8; }
+    body { margin: 0; min-height: 100vh; display: flex; justify-content: center; }
+    main { width: min(820px, 100%); min-height: 100vh; display: flex; flex-direction: column; background: white; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid #e5e5e5; font-size: 1.1rem; font-weight: 650; }
+    header a { font-size: .9rem; font-weight: 500; color: #2563eb; text-decoration: none; }
+    #messages { flex: 1; padding: 1.25rem; overflow-y: auto; }
+    .message { margin: 0 0 1rem; padding: .85rem 1rem; border-radius: .8rem; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+    .user { margin-left: 12%; background: #eef2ff; }
+    .assistant { margin-right: 12%; background: #f3f4f6; }
+    .error { color: #a11; background: #fff0f0; }
+    form { display: flex; gap: .65rem; padding: 1rem; border-top: 1px solid #e5e5e5; }
+    textarea { flex: 1; resize: vertical; min-height: 2.6rem; max-height: 10rem; padding: .7rem .8rem; border: 1px solid #ccc; border-radius: .55rem; font: inherit; }
+    button { padding: 0 1.1rem; border: 0; border-radius: .55rem; color: white; background: #2563eb; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+  </style>
+</head>
+<body>
+  <main>
+    <header><span>チャットボット</span><a href="/indexer">TXTを登録</a></header>
+    <section id="messages" aria-live="polite"></section>
+    <form id="chat-form">
+      <textarea id="question" rows="1" placeholder="質問を入力してください" required></textarea>
+      <button id="send" type="submit">送信</button>
+    </form>
+  </main>
+  <script>
+    const form = document.querySelector("#chat-form");
+    const questionInput = document.querySelector("#question");
+    const messages = document.querySelector("#messages");
+    const sendButton = document.querySelector("#send");
+
+    function showMessage(role, content, extraClass = "") {
+      const item = document.createElement("div");
+      item.className = `message ${role} ${extraClass}`;
+      item.textContent = content;
+      messages.append(item);
+      item.scrollIntoView({ block: "end" });
+      return item;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const question = questionInput.value.trim();
+      if (!question) return;
+
+      showMessage("user", question);
+      questionInput.value = "";
+      questionInput.disabled = true;
+      sendButton.disabled = true;
+      const pending = showMessage("assistant", "回答を生成しています…");
+
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || result.error || "回答の生成に失敗しました");
+        pending.textContent = result.answer;
+      } catch (error) {
+        pending.classList.add("error");
+        pending.textContent = error.message;
+      } finally {
+        questionInput.disabled = false;
+        sendButton.disabled = false;
+        questionInput.focus();
+        messages.scrollTop = messages.scrollHeight;
+      }
+    });
+  </script>
+</body>
+</html>
